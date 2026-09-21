@@ -897,7 +897,18 @@ data "aws_iam_policy_document" "infra_apply" {
 module "github_oidc_infra" {
   source = "../../modules/github_oidc"
 
-  create_oidc_provider = false # references the existing account-wide provider, same as above
+  # Phase 3c (2026-09-21): this repo formally adopts the real, already-
+  # live OIDC provider (created 2026-09-12 by the original, now-archived
+  # bedrock-gateway-platform repo, referenced by every module call here
+  # via a data source ever since -- confirmed live via `aws iam
+  # get-open-id-connect-provider`, its real url/client_id_list/
+  # thumbprint_list exactly match this module's hardcoded resource
+  # block already). Picked this module call arbitrarily as the owner
+  # -- any one of the seven would do, the module only supports
+  # `create_oidc_provider = true` on exactly one caller at a time.
+  # Imported, not created -- see migrate-oidc-provider-import.sh
+  # (platform root).
+  create_oidc_provider = true
   github_org           = var.github_org
   github_repo          = local.runtime_gateway_repo
 

@@ -333,8 +333,13 @@ data "aws_iam_policy_document" "control_plane_infra_apply" {
     resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
   }
   statement {
-    sid       = "TerraformStateS3"
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+    sid = "TerraformStateS3"
+    # S3-native state locking (use_lockfile in every backend.tf, replacing
+    # the deprecated dynamodb_table): DeleteObject releases the <key>.tflock
+    # object an apply creates to hold the lock. Not needed by any *_plan
+    # role above -- every plan job always runs with -lock=false, so it
+    # never touches the lock file at all.
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
     resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
   }
 }
@@ -686,8 +691,13 @@ data "aws_iam_policy_document" "authz_infra_apply" {
     resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
   }
   statement {
-    sid       = "TerraformStateS3"
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+    sid = "TerraformStateS3"
+    # S3-native state locking (use_lockfile in every backend.tf, replacing
+    # the deprecated dynamodb_table): DeleteObject releases the <key>.tflock
+    # object an apply creates to hold the lock. Not needed by any *_plan
+    # role above -- every plan job always runs with -lock=false, so it
+    # never touches the lock file at all.
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
     resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
   }
 }
@@ -906,8 +916,13 @@ data "aws_iam_policy_document" "infra_apply" {
     resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
   }
   statement {
-    sid       = "TerraformStateS3"
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+    sid = "TerraformStateS3"
+    # S3-native state locking (use_lockfile in every backend.tf, replacing
+    # the deprecated dynamodb_table): DeleteObject releases the <key>.tflock
+    # object an apply creates to hold the lock. Not needed by any *_plan
+    # role above -- every plan job always runs with -lock=false, so it
+    # never touches the lock file at all.
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
     resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
   }
   # S3AuditStore's bucket (gateway-{dev,prod}-audit) -- learned live, the
@@ -1121,8 +1136,13 @@ data "aws_iam_policy_document" "api_gateway_apply" {
     resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
   }
   statement {
-    sid       = "TerraformStateS3"
-    actions   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+    sid = "TerraformStateS3"
+    # S3-native state locking (use_lockfile in every backend.tf, replacing
+    # the deprecated dynamodb_table): DeleteObject releases the <key>.tflock
+    # object an apply creates to hold the lock. Not needed by any *_plan
+    # role above -- every plan job always runs with -lock=false, so it
+    # never touches the lock file at all.
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
     resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
   }
   # Plan section 35.11 (P1 production hardening): the WAF Web ACL +

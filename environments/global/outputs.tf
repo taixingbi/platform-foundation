@@ -1,13 +1,3 @@
-output "app_deploy_role_arns" {
-  description = "Set as AWS_APP_DEPLOY_ROLE_ARN_DEV / _PROD in this repo's own GitHub Environment variables (app-ci.yml/app-promote-prod.yml)."
-  value       = module.github_oidc_app.role_arns
-}
-
-output "infra_role_arns" {
-  description = "Set as AWS_INFRA_PLAN_ROLE_ARN / AWS_INFRA_APPLY_ROLE_ARN in this repo's own GitHub Environment variables (infra-ci.yml/infra-promote-prod.yml)."
-  value       = module.github_oidc_infra.role_arns
-}
-
 output "policy_publish_role_arn" {
   description = "Set as AWS_POLICY_PUBLISH_ROLE_ARN in platform-policy-definitions's GitHub Environment variables."
   value       = module.github_oidc_policies.role_arns["publish"]

@@ -194,6 +194,13 @@ data "aws_iam_policy_document" "control_plane_infra_plan" {
     sid = "ReadOnly"
     actions = [
       "ec2:Describe*",
+      # Learned live 2026-09-21 fixing the portal outage: refreshing
+      # modules/portal_service's data "aws_ec2_managed_prefix_list"
+      # "cloudfront_origin_facing" calls this specific action, a
+      # distinct verb Describe* doesn't cover -- same gap
+      # api_gateway_plan's own WafReadOnly-adjacent comment already
+      # documents for a different data source in platform-edge-gateway.
+      "ec2:GetManagedPrefixListEntries",
       "elasticloadbalancing:Describe*",
       "ecs:Describe*", "ecs:List*",
       "ecr:Describe*", "ecr:List*", "ecr:GetLifecyclePolicy",

@@ -275,8 +275,10 @@ data "aws_iam_policy_document" "control_plane_infra_apply" {
   }
   # IAM role names ARE predictable, scoped by name -- only the portal's
   # own roles exist today (gateway-dev-portal-execution). Widen this
-  # (e.g. to gateway-*-control-plane-*) once the backend's real ECS
-  # infra and role naming is decided.
+  # Phase 4 (2026-09-21, "direct cutover"): widened from
+  # gateway-*-portal-* only to also cover gateway-*-control-plane-*,
+  # now that the backend's real ECS infra and role naming
+  # (modules/backend_service) exist.
   statement {
     sid = "ManagePortalRoles"
     actions = [
@@ -285,7 +287,10 @@ data "aws_iam_policy_document" "control_plane_infra_apply" {
       "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListAttachedRolePolicies",
       "iam:ListRolePolicies", "iam:TagRole", "iam:UntagRole", "iam:PassRole",
     ]
-    resources = ["arn:aws:iam::${local.account_id}:role/gateway-*-portal-*"]
+    resources = [
+      "arn:aws:iam::${local.account_id}:role/gateway-*-portal-*",
+      "arn:aws:iam::${local.account_id}:role/gateway-*-control-plane-*",
+    ]
   }
   statement {
     sid       = "AppAutoscalingServiceLinkedRole"
@@ -367,6 +372,66 @@ module "github_oidc_control_plane" {
     dev = {
       role_name   = "gha-control-plane-portal-deploy-dev"
       policy_json = data.aws_iam_policy_document.control_plane_portal_deploy.json
+    }
+  }
+}
+
+# Same shape as control_plane_portal_deploy above, scoped to the
+# backend's own real resource names instead. A separate module call,
+# not a second key in the roles map above -- ci.yml's "Deploy backend
+# to dev" and "Deploy portal to dev" jobs both use GitHub Environment
+# "dev" (same repo, same environment name), but each needs its own
+# distinct IAM role; one module's roles map can't have two entries
+# under the same key. Same pattern bedrock-runtime-gateway's own
+# github_oidc_app/github_oidc_infra split already uses for an
+# analogous reason.
+data "aws_iam_policy_document" "control_plane_backend_deploy" {
+  statement {
+    sid = "PushToEcr"
+    actions = [
+      "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability",
+      "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
+    ]
+    resources = ["arn:aws:ecr:${var.aws_region}:${local.account_id}:repository/gateway-dev-control-plane*"]
+  }
+  statement {
+    sid       = "EcrAuth"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "DeployToEcs"
+    actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
+    resources = ["*"]
+    condition {
+      test     = "ArnLike"
+      variable = "ecs:cluster"
+      values   = ["arn:aws:ecs:${var.aws_region}:${local.account_id}:cluster/gateway-dev-control-plane*"]
+    }
+  }
+  statement {
+    sid       = "RegisterTaskDefinition"
+    actions   = ["ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "PassExecutionRole"
+    actions   = ["iam:PassRole"]
+    resources = ["arn:aws:iam::${local.account_id}:role/gateway-dev-control-plane*-execution"]
+  }
+}
+
+module "github_oidc_control_plane_backend" {
+  source = "../../modules/github_oidc"
+
+  create_oidc_provider = false
+  github_org           = var.github_org
+  github_repo          = local.control_plane_repo
+
+  roles = {
+    dev = {
+      role_name   = "gha-control-plane-backend-deploy-dev"
+      policy_json = data.aws_iam_policy_document.control_plane_backend_deploy.json
     }
   }
 }

@@ -439,9 +439,18 @@ data "aws_iam_policy_document" "control_plane_backend_deploy" {
     resources = ["*"]
   }
   statement {
-    sid       = "PassExecutionRole"
-    actions   = ["iam:PassRole"]
-    resources = ["arn:aws:iam::${local.account_id}:role/gateway-dev-control-plane*-execution"]
+    # Both the execution role AND the task role -- learned live: ECS
+    # RegisterTaskDefinition needs to pass both when a task definition
+    # specifies task_role_arn too, not just execution_role_arn (same
+    # gap app_deploy's own PassEcsRoles statement already documents;
+    # missed copying it here since portal_deploy -- what this was
+    # adapted from -- has no task role of its own to pass).
+    sid     = "PassBackendRoles"
+    actions = ["iam:PassRole"]
+    resources = [
+      "arn:aws:iam::${local.account_id}:role/gateway-dev-control-plane*-execution",
+      "arn:aws:iam::${local.account_id}:role/gateway-dev-control-plane*-task",
+    ]
   }
 }
 

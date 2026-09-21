@@ -51,6 +51,7 @@ locals {
   authz_repo         = "platform-authz-service"
   api_gateway_repo   = "platform-edge-gateway"
   control_plane_repo = "platform-control-plane"
+  foundation_repo    = "platform-foundation"
 }
 
 # --- App repo: push to ECR, deploy to ECS. Same shape this account
@@ -1188,4 +1189,58 @@ module "github_oidc_policies" {
   }
 
   depends_on = [module.github_oidc_app]
+}
+
+# --- This repo's own CI (plan-only, no auto-apply anywhere -- every
+# apply against this repo's three environments stays a manual hand-off,
+# unlike every other repo's dev auto-apply, since this is the repo that
+# owns the OIDC provider itself, every other repo's deploy/plan/apply
+# roles, the shared VPC/network, and the Private CA: the blast radius
+# of a bad auto-apply here is much larger than a normal service). One
+# read-only role, reused across all three environments' plan jobs --
+# the AWS role itself doesn't care which environment/ directory it's
+# invoked from, only the policy below scopes what it can read. --------
+
+data "aws_iam_policy_document" "foundation_plan" {
+  statement {
+    sid = "ReadOnly"
+    actions = [
+      # modules/network: VPC, subnets, route tables, IGW/NAT/EIP, the
+      # two gateway VPC endpoints.
+      "ec2:Describe*",
+      # modules/github_oidc: the OIDC provider itself, every role +
+      # inline policy this repo manages across all seven module calls.
+      "iam:Get*", "iam:List*",
+      # environments/dev's Private CA (aws_acmpca_certificate_authority
+      # + the self-signed root cert issued from it).
+      "acm-pca:Describe*", "acm-pca:Get*", "acm-pca:List*",
+      "sts:GetCallerIdentity",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "TerraformStateDynamoDbLock"
+    actions   = ["dynamodb:GetItem", "dynamodb:DescribeTable"]
+    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
+  }
+  statement {
+    sid       = "TerraformStateS3"
+    actions   = ["s3:GetObject", "s3:ListBucket"]
+    resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
+  }
+}
+
+module "github_oidc_foundation" {
+  source = "../../modules/github_oidc"
+
+  create_oidc_provider = false
+  github_org           = var.github_org
+  github_repo          = local.foundation_repo
+
+  roles = {
+    plan = {
+      role_name   = "gha-foundation-plan"
+      policy_json = data.aws_iam_policy_document.foundation_plan.json
+    }
+  }
 }

@@ -1,0 +1,107 @@
+name: Terraform
+
+# Plan-only, every environment -- no apply job anywhere in this repo.
+# Unlike every other repo (dev auto-applies on push to main via CI),
+# this repo owns the OIDC provider itself, every other repo's
+# deploy/plan/apply roles, the shared VPC/network, and the Private CA:
+# a bad auto-apply here has far more blast radius than a normal
+# service, so every apply against dev/global/prod stays a manual
+# hand-off (real `terraform plan` reviewed here, `apply` run locally).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "environments/**"
+      - "modules/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "environments/**"
+      - "modules/**"
+      - ".github/workflows/terraform.yml"
+
+jobs:
+  fmt-validate:
+    name: fmt + validate (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, global, prod]
+    # global's own module (github_oidc) needs a value for github_org to
+    # validate -- not a secret (it's this account's public GitHub
+    # username), so a plain job-level env var is fine here. dev/prod
+    # don't declare that variable at all; an unused TF_VAR_* is simply
+    # ignored, not an error.
+    env:
+      TF_VAR_github_org: taixingbi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive .
+
+      - name: terraform init (no backend, validate only)
+        working-directory: environments/${{ matrix.environment }}
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        working-directory: environments/${{ matrix.environment }}
+        run: terraform validate
+
+  plan:
+    name: plan (${{ matrix.environment }})
+    needs: fmt-validate
+    runs-on: ubuntu-latest
+    environment: plan
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, global, prod]
+    env:
+      TF_VAR_github_org: taixingbi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_FOUNDATION_PLAN_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: terraform init
+        working-directory: environments/${{ matrix.environment }}
+        run: terraform init -input=false
+
+      - name: terraform plan
+        working-directory: environments/${{ matrix.environment }}
+        run: terraform plan -input=false -lock=false
+
+  # Same reasoning as every sibling repo's copy of this job: not in any
+  # job's `needs:`, findings land in the Security tab only.
+  tfsec:
+    name: IaC scan (tfsec)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/tfsec-sarif-action@v0.1.4
+        with:
+          sarif_file: tfsec.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tfsec.sarif

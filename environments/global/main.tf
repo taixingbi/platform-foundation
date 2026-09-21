@@ -227,11 +227,6 @@ data "aws_iam_policy_document" "control_plane_infra_plan" {
     resources = ["*"]
   }
   statement {
-    sid       = "TerraformStateDynamoDbLock"
-    actions   = ["dynamodb:GetItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
-  }
-  statement {
     sid       = "TerraformStateS3"
     actions   = ["s3:GetObject", "s3:ListBucket"]
     resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
@@ -326,11 +321,6 @@ data "aws_iam_policy_document" "control_plane_infra_apply" {
       variable = "iam:AWSServiceName"
       values   = ["ecs.application-autoscaling.amazonaws.com"]
     }
-  }
-  statement {
-    sid       = "TerraformStateDynamoDbLock"
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
   }
   statement {
     sid = "TerraformStateS3"
@@ -593,11 +583,6 @@ data "aws_iam_policy_document" "authz_infra_plan" {
     resources = ["*"]
   }
   statement {
-    sid       = "TerraformStateDynamoDbLock"
-    actions   = ["dynamodb:GetItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
-  }
-  statement {
     sid       = "TerraformStateS3"
     actions   = ["s3:GetObject", "s3:ListBucket"]
     resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
@@ -684,11 +669,6 @@ data "aws_iam_policy_document" "authz_infra_apply" {
       variable = "iam:AWSServiceName"
       values   = ["ecs.application-autoscaling.amazonaws.com"]
     }
-  }
-  statement {
-    sid       = "TerraformStateDynamoDbLock"
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
   }
   statement {
     sid = "TerraformStateS3"
@@ -911,11 +891,6 @@ data "aws_iam_policy_document" "infra_apply" {
     resources = ["*"]
   }
   statement {
-    sid       = "TerraformStateDynamoDbLock"
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
-  }
-  statement {
     sid = "TerraformStateS3"
     # S3-native state locking (use_lockfile in every backend.tf, replacing
     # the deprecated dynamodb_table): DeleteObject releases the <key>.tflock
@@ -1082,11 +1057,6 @@ data "aws_iam_policy_document" "api_gateway_plan" {
     resources = ["*"]
   }
   statement {
-    sid       = "TerraformStateDynamoDbLock"
-    actions   = ["dynamodb:GetItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
-  }
-  statement {
     sid       = "TerraformStateS3"
     actions   = ["s3:GetObject", "s3:ListBucket"]
     resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
@@ -1129,11 +1099,6 @@ data "aws_iam_policy_document" "api_gateway_apply" {
     sid       = "LogsBroad"
     actions   = ["logs:*"]
     resources = ["*"]
-  }
-  statement {
-    sid       = "TerraformStateDynamoDbLock"
-    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
   }
   statement {
     sid = "TerraformStateS3"
@@ -1237,11 +1202,6 @@ data "aws_iam_policy_document" "foundation_plan" {
       "sts:GetCallerIdentity",
     ]
     resources = ["*"]
-  }
-  statement {
-    sid       = "TerraformStateDynamoDbLock"
-    actions   = ["dynamodb:GetItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:*:${local.account_id}:table/*tfstate*"]
   }
   statement {
     sid       = "TerraformStateS3"

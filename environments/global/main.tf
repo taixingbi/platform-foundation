@@ -212,6 +212,16 @@ data "aws_iam_policy_document" "control_plane_infra_plan" {
       "sts:GetCallerIdentity",
       "application-autoscaling:Describe*", "application-autoscaling:ListTagsForResource",
       "cloudwatch:Describe*", "cloudwatch:List*", "cloudwatch:Get*",
+      # Phase 4 (2026-09-21, "direct cutover"): backend_service's own
+      # cross-repo lookups (the ops_alerts SNS topic, the 7 DynamoDB
+      # tables it reads/writes) -- learned live the same way
+      # ec2:GetManagedPrefixListEntries was above: Describe*/Get*
+      # doesn't cover sns:ListTopics or dynamodb:ListTagsOfResource,
+      # DynamoDB's own break from the usual naming convention (same
+      # gap authz_infra_plan's own ReadOnly statement already
+      # documents).
+      "sns:GetTopicAttributes", "sns:ListTopics", "sns:ListTagsForResource",
+      "dynamodb:Describe*", "dynamodb:ListTagsOfResource",
     ]
     resources = ["*"]
   }
@@ -273,12 +283,26 @@ data "aws_iam_policy_document" "control_plane_infra_apply" {
     actions   = ["cloudwatch:*"]
     resources = ["*"]
   }
-  # IAM role names ARE predictable, scoped by name -- only the portal's
-  # own roles exist today (gateway-dev-portal-execution). Widen this
-  # Phase 4 (2026-09-21, "direct cutover"): widened from
-  # gateway-*-portal-* only to also cover gateway-*-control-plane-*,
-  # now that the backend's real ECS infra and role naming
-  # (modules/backend_service) exist.
+  # Read-only: bedrock-runtime-gateway owns both the ops_alerts SNS
+  # topic and the 7 DynamoDB tables backend_service reads/writes --
+  # this repo only ever looks them up by name (data source), never
+  # manages their lifecycle. Same convention as authz_infra_apply's
+  # identical statements.
+  statement {
+    sid       = "SnsReadOnly"
+    actions   = ["sns:GetTopicAttributes", "sns:ListTopics", "sns:ListTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "DynamoDbReadOnly"
+    actions   = ["dynamodb:Describe*", "dynamodb:ListTagsOfResource"]
+    resources = ["*"]
+  }
+  # IAM role names ARE predictable, scoped by name. Phase 4
+  # (2026-09-21, "direct cutover"): widened from gateway-*-portal-*
+  # only to also cover gateway-*-control-plane-*, now that the
+  # backend's real ECS infra and role naming (modules/backend_service)
+  # exist.
   statement {
     sid = "ManagePortalRoles"
     actions = [

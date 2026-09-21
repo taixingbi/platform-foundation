@@ -1210,6 +1210,31 @@ data "aws_iam_policy_document" "foundation_plan" {
   }
 }
 
+# dev auto-apply, matching every other repo's convention -- deliberately
+# scoped to ONLY environments/dev's own resources (network + the Private
+# CA), never iam:*/ManageOidcProvider (those live in environments/global,
+# which stays plan-only/manual -- no equivalent to "prod" risk-wise in
+# any other repo, since a bad apply there can affect every other repo's
+# own CI, not just this one). environments/prod stays plan-only too
+# (never applied, per this account's standing "hold prod" convention).
+data "aws_iam_policy_document" "foundation_apply_dev" {
+  statement {
+    sid       = "Ec2Broad"
+    actions   = ["ec2:*"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "AcmPcaBroad"
+    actions   = ["acm-pca:*"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "TerraformStateS3"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+    resources = ["arn:aws:s3:::*tfstate*", "arn:aws:s3:::*tfstate*/*"]
+  }
+}
+
 module "github_oidc_foundation" {
   source = "../../modules/github_oidc"
 
@@ -1221,6 +1246,10 @@ module "github_oidc_foundation" {
     plan = {
       role_name   = "gha-foundation-plan"
       policy_json = data.aws_iam_policy_document.foundation_plan.json
+    }
+    apply-dev = {
+      role_name   = "gha-foundation-apply-dev"
+      policy_json = data.aws_iam_policy_document.foundation_apply_dev.json
     }
   }
 }

@@ -1,12 +1,14 @@
 name: Terraform
 
-# Plan-only, every environment -- no apply job anywhere in this repo.
-# Unlike every other repo (dev auto-applies on push to main via CI),
-# this repo owns the OIDC provider itself, every other repo's
-# deploy/plan/apply roles, the shared VPC/network, and the Private CA:
-# a bad auto-apply here has far more blast radius than a normal
-# service, so every apply against dev/global/prod stays a manual
-# hand-off (real `terraform plan` reviewed here, `apply` run locally).
+# dev auto-applies on push to main, same convention as every other repo
+# -- deliberately scoped to ONLY environments/dev's own resources
+# (network + the Private CA), via a role with no iam:*/OIDC-provider
+# permissions at all. global and prod stay plan-only/manual hand-off:
+# global owns the OIDC provider itself and every other repo's
+# deploy/plan/apply roles (a bad apply there can affect every other
+# repo's own CI, not just this one -- no equivalent risk tier exists in
+# any sibling repo's own "prod"), and prod is never applied at all, per
+# this account's standing "hold prod" convention.
 
 on:
   push:
@@ -88,6 +90,40 @@ jobs:
       - name: terraform plan
         working-directory: environments/${{ matrix.environment }}
         run: terraform plan -input=false -lock=false
+
+  apply-dev:
+    name: apply (dev)
+    needs: fmt-validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # "apply-dev" has no required reviewers -- dev deploys automatically
+    # on every push to main once fmt/validate passes, same convention
+    # every other repo's own apply-dev job already uses.
+    environment: apply-dev
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      TF_VAR_github_org: taixingbi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_FOUNDATION_APPLY_DEV_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.1"
+
+      - name: terraform init
+        working-directory: environments/dev
+        run: terraform init -input=false
+
+      - name: terraform apply
+        working-directory: environments/dev
+        run: terraform apply -input=false -auto-approve
 
   # Same reasoning as every sibling repo's copy of this job: not in any
   # job's `needs:`, findings land in the Security tab only.

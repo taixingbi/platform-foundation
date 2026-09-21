@@ -13,11 +13,12 @@
 # other repo's own ci_identity now only risks that one repo's CI, not
 # every repo's at once.
 #
-# The only other thing left here is bedrock-gateway-portal's roles
-# (module.github_oidc_portal, below) -- deliberately NOT migrated,
-# since that whole repo gets deleted outright once
-# platform-control-plane's own portal cutover completes, not moved
-# anywhere.
+# bedrock-gateway-portal's own roles (gha-portal-deploy-dev/prod) were
+# removed outright (not migrated) on 2026-09-21, once
+# platform-control-plane's own portal was confirmed live -- verified
+# the running gateway-dev-portal-service task was already built from
+# platform-control-plane's own CI, and bedrock-gateway-portal is
+# archived on GitHub (can no longer deploy at all).
 
 terraform {
   required_version = ">= 1.5"
@@ -36,84 +37,8 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_id = data.aws_caller_identity.current.account_id
-
-  # Not renamed -- superseded by platform-control-plane's own portal,
-  # not yet cut over live; stays bedrock-gateway-portal until that
-  # repo is deprecated.
-  portal_repo     = "bedrock-gateway-portal"
+  account_id      = data.aws_caller_identity.current.account_id
   foundation_repo = "platform-foundation"
-}
-
-# --- Portal repo (M10): push to ECR, register+deploy a task
-# definition -- no PassRole for a task role, unlike bedrock-runtime-gateway's
-# own app_deploy (now in that repo's own ci_identity): portal_service
-# has no task IAM role at all (the portal never calls an AWS API
-# directly, only the gateway's own HTTP admin API), so there's no task
-# role ARN to pass. Temporary -- this whole role (and the
-# bedrock-gateway-portal repo it belongs to) gets deleted outright,
-# not migrated, once platform-control-plane's own portal cutover is
-# complete. ---------------------------
-
-data "aws_iam_policy_document" "portal_deploy" {
-  for_each = { dev = "gateway-dev-portal", prod = "gateway-prod-portal" }
-
-  statement {
-    sid = "PushToEcr"
-    actions = [
-      "ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability",
-      "ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload",
-    ]
-    resources = ["arn:aws:ecr:${var.aws_region}:${local.account_id}:repository/${each.value}*"]
-  }
-
-  statement {
-    sid       = "EcrAuth"
-    actions   = ["ecr:GetAuthorizationToken"]
-    resources = ["*"]
-  }
-
-  statement {
-    sid       = "DeployToEcs"
-    actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
-    resources = ["*"]
-    condition {
-      test     = "ArnLike"
-      variable = "ecs:cluster"
-      values   = ["arn:aws:ecs:${var.aws_region}:${local.account_id}:cluster/${each.value}*"]
-    }
-  }
-
-  statement {
-    sid       = "RegisterTaskDefinition"
-    actions   = ["ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition"]
-    resources = ["*"]
-  }
-
-  statement {
-    sid       = "PassExecutionRole"
-    actions   = ["iam:PassRole"]
-    resources = ["arn:aws:iam::${local.account_id}:role/${each.value}*-execution"]
-  }
-}
-
-module "github_oidc_portal" {
-  source = "../../modules/github_oidc"
-
-  create_oidc_provider = false
-  github_org           = var.github_org
-  github_repo          = local.portal_repo
-
-  roles = {
-    dev = {
-      role_name   = "gha-portal-deploy-dev"
-      policy_json = data.aws_iam_policy_document.portal_deploy["dev"].json
-    }
-    prod = {
-      role_name   = "gha-portal-deploy-prod"
-      policy_json = data.aws_iam_policy_document.portal_deploy["prod"].json
-    }
-  }
 }
 
 # --- This repo's own CI (plan-only, no auto-apply anywhere -- every
@@ -133,9 +58,8 @@ data "aws_iam_policy_document" "foundation_plan" {
       # modules/network: VPC, subnets, route tables, IGW/NAT/EIP, the
       # two gateway VPC endpoints.
       "ec2:Describe*",
-      # modules/github_oidc: the OIDC provider itself, plus every role
-      # + inline policy this repo still manages directly (its own,
-      # and bedrock-gateway-portal's temporary ones).
+      # modules/github_oidc: the OIDC provider itself, plus this
+      # repo's own role + inline policy (the only ones left here).
       "iam:Get*", "iam:List*",
       # environments/dev's Private CA (aws_acmpca_certificate_authority
       # + the self-signed root cert issued from it).

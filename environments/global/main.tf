@@ -465,18 +465,15 @@ data "aws_iam_policy_document" "infra_apply" {
 module "github_oidc_infra" {
   source = "../../modules/github_oidc"
 
-  # Phase 3c (2026-09-21): this repo formally adopts the real, already-
-  # live OIDC provider (created 2026-09-12 by the original, now-archived
-  # bedrock-gateway-platform repo, referenced by every module call here
-  # via a data source ever since -- confirmed live via `aws iam
-  # get-open-id-connect-provider`, its real url/client_id_list/
-  # thumbprint_list exactly match this module's hardcoded resource
-  # block already). Picked this module call arbitrarily as the owner
-  # -- any one of the seven would do, the module only supports
-  # `create_oidc_provider = true` on exactly one caller at a time.
-  # Imported, not created -- see migrate-oidc-provider-import.sh
-  # (platform root).
-  create_oidc_provider = true
+  # Terraform-ownership migration, step 4 of 6 (2026-09-21): this
+  # module's roles are moving to bedrock-runtime-gateway's own
+  # ci_identity, but the account-wide OIDC provider singleton must stay
+  # in this repo -- ownership of that ONE resource moved to
+  # module.github_oidc_foundation (via `terraform state mv`, see that
+  # module's own comment), which never leaves. This call now only ever
+  # references the provider via data source, same as every other call
+  # here.
+  create_oidc_provider = false
   github_org           = var.github_org
   github_repo          = local.runtime_gateway_repo
 
@@ -597,7 +594,17 @@ data "aws_iam_policy_document" "foundation_apply_dev" {
 module "github_oidc_foundation" {
   source = "../../modules/github_oidc"
 
-  create_oidc_provider = false
+  # Terraform-ownership migration, step 4 of 6 (2026-09-21): the
+  # account-wide OIDC provider singleton's ownership moved here from
+  # module.github_oidc_infra (which formally adopted it via import back
+  # in Phase 3c -- created 2026-09-12 by the original, now-archived
+  # bedrock-gateway-platform repo) via `terraform state mv`, not
+  # delete/recreate -- this module call never migrates to another repo,
+  # unlike github_oidc_infra's own roles, so it's the permanent home for
+  # the one resource every other repo's module call reads via data
+  # source. Picked deliberately this time (not arbitrarily, unlike the
+  # original Phase 3c pick) specifically because this module stays.
+  create_oidc_provider = true
   github_org           = var.github_org
   github_repo          = local.foundation_repo
 

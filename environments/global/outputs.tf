@@ -17,8 +17,3 @@ output "portal_deploy_role_arns" {
   description = "Set as AWS_PORTAL_DEPLOY_ROLE_ARN_DEV / _PROD in bedrock-gateway-portal's GitHub Environment variables."
   value       = module.github_oidc_portal.role_arns
 }
-
-output "api_gateway_role_arns" {
-  description = "Set as AWS_API_GATEWAY_PLAN_ROLE_ARN / AWS_API_GATEWAY_APPLY_DEV_ROLE_ARN / AWS_API_GATEWAY_APPLY_PROD_ROLE_ARN in platform-edge-gateway's GitHub Environment variables."
-  value       = module.github_oidc_api_gateway.role_arns
-}

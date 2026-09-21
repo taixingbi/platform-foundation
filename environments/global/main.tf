@@ -25,7 +25,6 @@ data "aws_caller_identity" "current" {}
 locals {
   account_id = data.aws_caller_identity.current.account_id
 
-  policies_repo = "platform-policy-definitions"
   # Not renamed -- superseded by platform-control-plane's own portal,
   # not yet cut over live; stays bedrock-gateway-portal until that
   # repo is deprecated.
@@ -102,43 +101,6 @@ module "github_oidc_portal" {
       policy_json = data.aws_iam_policy_document.portal_deploy["prod"].json
     }
   }
-}
-
-# --- Policies repo: write-only to wherever policy delivery ends up.
-# Phase 1 (interim, current) has nothing for this role to actually do --
-# delivery is a manual copy into the app repo, not an automated publish.
-# Scoped ahead of time to phase 2's planned DynamoDB table name so the
-# trust relationship/role identity already exists; inert until that
-# table does. -----------------------------------------------------------
-
-data "aws_iam_policy_document" "policy_publish" {
-  statement {
-    sid       = "PublishToPolicyTable"
-    actions   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DescribeTable"]
-    resources = ["arn:aws:dynamodb:${var.aws_region}:${local.account_id}:table/gateway-policies"]
-  }
-}
-
-module "github_oidc_policies" {
-  source = "../../modules/github_oidc"
-
-  create_oidc_provider = false
-  github_org           = var.github_org
-  github_repo          = local.policies_repo
-
-  roles = {
-    publish = {
-      role_name   = "gha-policy-publish"
-      policy_json = data.aws_iam_policy_document.policy_publish.json
-    }
-  }
-
-  # Ensures the account-wide OIDC provider (now owned by
-  # module.github_oidc_foundation, moved there from this repo's former
-  # module.github_oidc_app in the Terraform-ownership migration) exists
-  # before this role's own data-source lookup of it, avoiding a
-  # first-ever-apply ordering race.
-  depends_on = [module.github_oidc_foundation]
 }
 
 # --- This repo's own CI (plan-only, no auto-apply anywhere -- every

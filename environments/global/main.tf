@@ -1,10 +1,23 @@
-# Account-wide resources: the GitHub OIDC provider (created once, here)
-# and every OIDC role across all three split repos -- this repo owns
-# IAM/OIDC for the whole platform, even though the app and policies
-# repos' own CI is what actually assumes these roles. Apply this once
-# per AWS account, before any of the three repos' CI can authenticate
-# (see README.md for the required apply order, including the
-# chicken-and-egg first-ever apply of this repo's own infra-apply role).
+# Account-wide resources: the GitHub OIDC provider (the one resource
+# here every other repo's own CI depends on, referenced everywhere
+# else only via data source) plus this repo's own CI roles
+# (plan/apply-dev, below).
+#
+# Terraform-ownership migration (2026-09-21): every other repo's own
+# CI roles used to live here too (app, infra, authz, control-plane,
+# edge-gateway, policies) -- each has since moved to its own
+# ci_identity root in its own repo, imported there via `terraform
+# import` (never delete/recreate), so ARNs and GitHub Environment
+# variables never changed. Only the OIDC provider singleton and this
+# repo's own roles stay here permanently: a bad apply against any
+# other repo's own ci_identity now only risks that one repo's CI, not
+# every repo's at once.
+#
+# The only other thing left here is bedrock-gateway-portal's roles
+# (module.github_oidc_portal, below) -- deliberately NOT migrated,
+# since that whole repo gets deleted outright once
+# platform-control-plane's own portal cutover completes, not moved
+# anywhere.
 
 terraform {
   required_version = ">= 1.5"
@@ -120,8 +133,9 @@ data "aws_iam_policy_document" "foundation_plan" {
       # modules/network: VPC, subnets, route tables, IGW/NAT/EIP, the
       # two gateway VPC endpoints.
       "ec2:Describe*",
-      # modules/github_oidc: the OIDC provider itself, every role +
-      # inline policy this repo manages across all seven module calls.
+      # modules/github_oidc: the OIDC provider itself, plus every role
+      # + inline policy this repo still manages directly (its own,
+      # and bedrock-gateway-portal's temporary ones).
       "iam:Get*", "iam:List*",
       # environments/dev's Private CA (aws_acmpca_certificate_authority
       # + the self-signed root cert issued from it).
